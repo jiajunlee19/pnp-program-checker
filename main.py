@@ -8,7 +8,7 @@ try:
     import getpass
     # import xlwings as xw
     from utils.logger import logger_init
-    from utils.Common_Functions_64 import removeExtraDelimiter, ExpandSeries, digit_to_nondigit, split_into_rows, extract_num_from_end, string_remove_duplicate
+    from utils.Common_Functions_64 import removeExtraDelimiter, ExpandSeries, digit_to_nondigit, split_into_rows, extract_num_from_end, string_remove_duplicate, flatten
 
 except ImportError as IE:
     print(f"Import Error: {str(IE)}")
@@ -117,7 +117,7 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
 
     log.debug('Removing duplicates of selected 590, MCTO, program...')
     selected_590 = set(df_input['BOM'])
-    selected_MCTO = set(df_input['MCTO'] + '_' + df_input['PV'])
+    selected_MCTO = set(df_input['MCTO'])
     selected_program = set(df_input['PNP_PROGRAM_SIDE1']).union(set(df_input['PNP_PROGRAM_SIDE2']))
 
     # log.debug('Hardcoding selected files...')
@@ -338,10 +338,35 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
         
         log.info(conn_response)
         
+        log.info('Running query_BOM_590...')
         query_BOM_590 = '''
-                    SELECT BOM, COMPONENT, COMPDESC, QUANTITY, DESIGNATOR, 'BOM_590' as 'GROUP' FROM [localdb].[dbo].[BOM_590];
+                    SELECT bh.SAP_mat_no as BOM, 
+                        bi.compnt_no as COMPONENT, bi.compnt_desc as COMPDESC, 
+                        CASE
+                            WHEN CAST(bi.compnt_qty as INT) >= 1000 THEN CAST(CAST(bi.compnt_qty as INT)/1000 as INT)
+                            ELSE CAST(bi.compnt_qty as INT)
+                        END as QUANTITY, 
+                        bi.item_text as DESIGNATOR, 'BOM_590' as 'GROUP' 
+                    FROM [SAP_PP].[dbo].[SAP_BOM_item] bi
+                    inner join [SAP_PP].[dbo].[SAP_BOM_header] bh on bi.BOM_no = bh.BOM_no
+                    inner join [SAP_PP].[dbo].[material_master] mm on bh.SAP_mat_no = mm.material_no
+                    where mm.material_group_code in ('590') and bh.SAP_mat_no in ({0});
                 '''
-        df_590 = pd.read_sql(sql=query_BOM_590, con=connection)
+        query_BOM_590 = query_BOM_590.format(','.join('?' * len(selected_590)))
+        params_BOM_590 = tuple(flatten(selected_590))
+        try:
+            df_590 = pd.read_sql(sql=query_BOM_590, con=connection, params=params_BOM_590)
+        except Exception:
+            raise ConnectionAbortedError ('Failed to run query_BOM_590, force exiting application...')
+        log.info(f"Total of {str(len(df_590))} rows detected in query_BOM_590.")
+
+        log.debug(f"Removing rows with comp_prefix = {exclude_comp_prefix}...")
+        df_590 = df_590[~df_590.COMPONENT.str.startswith(exclude_comp_prefix)]
+        log.debug(f"\n{df_590.head(5).to_string(index=False)}")
+
+        log.debug('Removing rows with comp_prefox = 511 and compdesc contains TH AE or THAE...')
+        df_590 = df_590[~(df_590.COMPONENT.str.startswith('511') & (df_590.COMPDESC.str.contains('TH AE') | df_590.COMPDESC.str.contains('THAE')))]
+        log.debug(f"\n{df_590.head(5).to_string(index=False)}")
 
         log.debug('Expanding designator series...')
         df_590['DESIGNATOR'] = df_590['DESIGNATOR'].apply(ExpandSeries)
@@ -350,11 +375,33 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
             raise ConnectionAbortedError ('Designators are not expanded, force exiting application...')
 
         log.debug(f"\n{df_590.head(5).to_string(index=False)}")
+        log.info(f"Total of {str(len(df_590))} rows detected in df_590.")
 
+        log.info('Running query_MCTO...')
         query_MCTO = '''
-                    SELECT MCTO, PV, COMPONENT, COMPDESC, QUANTITY, DESIGNATOR, 'MCTO' as 'GROUP' FROM [localdb].[dbo].[MCTO];
+                    SELECT bh.SAP_mat_no as BOM, bi.alt_BOM_type as PV,
+                        bi.compnt_no as COMPONENT, bi.compnt_desc as COMPDESC, 
+                        CASE
+                            WHEN CAST(bi.compnt_qty as INT) >= 1000 THEN CAST(CAST(bi.compnt_qty as INT)/1000 as INT)
+                            ELSE CAST(bi.compnt_qty as INT)
+                        END as QUANTITY, 
+                        bi.item_text as DESIGNATOR, 'MCTO' as 'GROUP' 
+                    FROM [SAP_PP].[dbo].[SAP_BOM_item] bi
+                    inner join [SAP_PP].[dbo].[SAP_BOM_header] bh on bi.BOM_no = bh.BOM_no and bi.alt_BOM_type = bh.alt_BOM_type
+                    inner join [SAP_PP].[dbo].[material_master] mm on bh.SAP_mat_no = mm.material_no
+                    where mm.material_group_code in ('MCTO', '002') and bh.SAP_mat_no in ({0});
                 '''
-        df_MCTO = pd.read_sql(sql=query_MCTO, con=connection)
+        query_MCTO = query_MCTO.format(','.join('?' * len(selected_MCTO)))
+        params_MCTO = tuple(flatten(selected_MCTO))
+        try:
+            df_MCTO = pd.read_sql(sql=query_MCTO, con=connection, params=params_MCTO)
+        except Exception:
+            raise ConnectionAbortedError ('Failed to run query_MCTO, force exiting application...')
+        log.info(f"Total of {str(len(df_MCTO))} rows detected in query_MCTO.")
+
+        log.debug(f"Removing rows with comp_prefix = {exclude_comp_prefix}...")
+        df_MCTO = df_MCTO[~df_MCTO.COMPONENT.str.startswith(exclude_comp_prefix)]
+        log.debug(f"\n{df_MCTO.head(5).to_string(index=False)}")
 
         log.debug('Expanding designator series...')
         df_MCTO['DESIGNATOR'] = df_MCTO['DESIGNATOR'].apply(ExpandSeries)
@@ -363,6 +410,7 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
             raise ConnectionAbortedError ('Designators are not expanded, force exiting application...')
         
         log.debug(f"\n{df_MCTO.head(5).to_string(index=False)}")
+        log.info(f"Total of {str(len(df_MCTO))} rows detected in query_MCTO.")
 
         if connection is not None:
             connection.close()
