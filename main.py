@@ -104,7 +104,9 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
         raise ConnectionAbortedError ('There is no input to be processed, force exiting application...')
 
     log.debug("Converting all input columns to str...")
+    df_input.replace(np.NaN, '', regex=True, inplace=True)
     df_input[input_columns] = df_input[input_columns].astype(str)
+    log.debug(f"\n{df_input.head(5).to_string(index=False)}")
 
     log.debug('Trimming all input columns...')
     for input_column in input_columns:
@@ -118,7 +120,10 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
     log.debug('Removing duplicates of selected 590, MCTO, program...')
     selected_590 = set(df_input['BOM'])
     selected_MCTO = set(df_input['MCTO'])
-    selected_program = set(df_input['PNP_PROGRAM_SIDE1']).union(set(df_input['PNP_PROGRAM_SIDE2']))
+    if df_input['PNP_PROGRAM_SIDE2'] == '':
+        selected_program = set(df_input['PNP_PROGRAM_SIDE1'])
+    else:
+        selected_program = set(df_input['PNP_PROGRAM_SIDE1']).union(set(df_input['PNP_PROGRAM_SIDE2']))
 
     # log.debug('Hardcoding selected files...')
     # selected_590 = {'590-624664'}
@@ -360,11 +365,17 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
             raise ConnectionAbortedError ('Failed to run query_BOM_590, force exiting application...')
         log.info(f"Total of {str(len(df_590))} rows detected in query_BOM_590.")
 
+        log.debug('Dropping null rows...')
+        df_590['DESIGNATOR'] = df_590['DESIGNATOR'].str.replace(' ', '')
+        df_590.replace('', np.NaN, inplace=True)
+        df_590.dropna(how='any', subset=['BOM', 'COMPONENT', 'COMPDESC', 'QUANTITY', 'DESIGNATOR', 'GROUP'], inplace=True)
+        log.debug(f"\n{df_590.head(5).to_string(index=False)}")
+
         log.debug(f"Removing rows with comp_prefix = {exclude_comp_prefix}...")
         df_590 = df_590[~df_590.COMPONENT.str.startswith(exclude_comp_prefix)]
         log.debug(f"\n{df_590.head(5).to_string(index=False)}")
 
-        log.debug('Removing rows with comp_prefox = 511 and compdesc contains TH AE or THAE...')
+        log.debug('Removing rows with comp_prefix = 511 and compdesc contains TH AE or THAE...')
         df_590 = df_590[~(df_590.COMPONENT.str.startswith('511') & (df_590.COMPDESC.str.contains('TH AE') | df_590.COMPDESC.str.contains('THAE')))]
         log.debug(f"\n{df_590.head(5).to_string(index=False)}")
 
@@ -398,6 +409,12 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
         except Exception:
             raise ConnectionAbortedError ('Failed to run query_MCTO, force exiting application...')
         log.info(f"Total of {str(len(df_MCTO))} rows detected in query_MCTO.")
+
+        log.debug('Dropping null rows...')
+        df_MCTO['DESIGNATOR'] = df_MCTO['DESIGNATOR'].str.replace(' ', '')
+        df_MCTO.replace('', np.NaN, inplace=True)
+        df_MCTO.dropna(how='any', subset=['MCTO', 'PV', 'COMPONENT', 'COMPDESC', 'QUANTITY', 'DESIGNATOR', 'GROUP'], inplace=True)
+        log.debug(f"\n{df_MCTO.head(5).to_string(index=False)}")
 
         log.debug(f"Removing rows with comp_prefix = {exclude_comp_prefix}...")
         df_MCTO = df_MCTO[~df_MCTO.COMPONENT.str.startswith(exclude_comp_prefix)]
