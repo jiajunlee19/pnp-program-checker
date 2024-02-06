@@ -120,10 +120,10 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
     log.debug('Removing duplicates of selected 590, MCTO, program...')
     selected_590 = set(df_input['BOM'])
     selected_MCTO = set(df_input['MCTO'])
-    if df_input['PNP_PROGRAM_SIDE2'] == '':
-        selected_program = set(df_input['PNP_PROGRAM_SIDE1'])
-    else:
-        selected_program = set(df_input['PNP_PROGRAM_SIDE1']).union(set(df_input['PNP_PROGRAM_SIDE2']))
+    try:
+        selected_program = (set(df_input['PNP_PROGRAM_SIDE1']).union(set(df_input['PNP_PROGRAM_SIDE2']))).remove('')
+    except KeyError:
+        selected_program = (set(df_input['PNP_PROGRAM_SIDE1']).union(set(df_input['PNP_PROGRAM_SIDE2'])))
 
     # log.debug('Hardcoding selected files...')
     # selected_590 = {'590-624664'}
