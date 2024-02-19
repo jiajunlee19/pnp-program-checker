@@ -99,7 +99,7 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
     log.debug('Trimming all input columns...')
     for input_column in input_columns:
         df_input[input_column] = df_input[input_column].astype(str)
-        df_input[input_column] = df_input[input_column].str.strip().str.upper()
+        df_input[input_column] = df_input[input_column].str.strip().str.upper().str.lstrip('0')
     df_input = df_input.replace([' '], ['']).replace(['NAN'], ['']).replace([''], [np.NaN], regex=True)
     log.debug(f"\n{df_input.head(5).to_string(index=False)}")
 
