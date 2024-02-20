@@ -48,6 +48,7 @@ To validate created PNP Programs against SAP BOM
 
 ### Test Cases
 Below are the passing test cases, using [590-624661](BOM_590/590-624661.csv) with its [PNP_PROGRAM](PNP_PROGRAM/590-624661/).
+
 | Scenario                                                       | Result                                                  |
 | :---                                                           | :---                                                    |
 | Part Number, Designator, Quantity are matched                  | Checker and PROGRAM_QTY_TALLY shows `green`             |
