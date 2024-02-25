@@ -460,13 +460,15 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
         log.debug(f"file_ext = {file_ext}")
 
         xmldata = file
-        prstree = ETree.parse(xmldata)
-        root = prstree.getroot()
+
         store_items = []
         store_feeder_items = []
         store_action_items = []
 
         if file_ext.lower() == 'pp7':
+            ETree.register_namespace('', 'http://api.assembleon.com/pp7/v1')
+            prstree = ETree.parse(xmldata)
+            root = prstree.getroot()
             pp_url = '{http://api.assembleon.com/pp7/v1}'
             log.debug(f"Setting pp_url to {pp_url}...")
             for GeneralInfo in root.iter(f"{pp_url}General"):
@@ -510,6 +512,9 @@ def main(log, path_main, path_590, path_MCTO, path_program, path_checker, input_
                 all_action_items.append(store_action_items)
 
         else:
+            ETree.register_namespace('', 'http://api.assembleon.com/pp/v2')
+            prstree = ETree.parse(xmldata)
+            root = prstree.getroot()
             pp_url = '{http://api.assembleon.com/pp/v2}'
             log.debug(f"Setting pp_url to {pp_url}...")
             for GeneralInfo in root.iter(f"{pp_url}General"):
